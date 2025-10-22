@@ -21,14 +21,22 @@
                 <Label Content="Komputer docelowy:" />
                 <TextBox x:Name="txtDestination" Text="1" />
 
-                <Label Content="Wiadomość:" />
-                <TextBox x:Name="txtMessage" Text="Hello" />
+                <Label Content="Wiadomość (tekst):" />
+                <TextBox x:Name="txtMessage" Text="Test" />
 
-                <Label Content="Wielomian:" />
+                <Label Content="Wielomian (np. x^3+x+1):" />
                 <TextBox x:Name="txtPolynomial" Text="x^3+x+1" />
 
                 <Button x:Name="btnSend" Content="Wyślij Pakiet" Click="btnSend_Click" Margin="0,20,0,0" />
 
+                <CheckBox x:Name="chkSimulateError" Content="Symuluj błąd transmisji" 
+                          Margin="0,10,0,0" 
+                          IsEnabled="{Binding ElementName=btnSend, Path=IsEnabled}"/>
+
+                <Label Content="Na komputerze o ID:" 
+                       IsEnabled="{Binding ElementName=chkSimulateError, Path=IsChecked}"/>
+                <TextBox x:Name="txtErrorNodeId" Text="2" 
+                         IsEnabled="{Binding ElementName=chkSimulateError, Path=IsChecked}"/>
                 <CheckBox x:Name="chkEditMode" Content="Tryb edycji połączeń" 
                           Margin="0,10,0,10"
                           Checked="chkEditMode_Changed"

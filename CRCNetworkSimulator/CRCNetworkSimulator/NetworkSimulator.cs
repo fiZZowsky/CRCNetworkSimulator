@@ -9,26 +9,24 @@ public class NetworkSimulator
 {
     public List<Computer> Computers { get; private set; }
     public string CurrentPolynomial { get; private set; } = "1011";
-
     private Action<string> _logger;
 
     public NetworkSimulator(Action<string> logger)
     {
-        _logger = logger;
-        Computers = new List<Computer>();
+        _logger = logger; Computers = new List<Computer>(); 
         int basePort = 5000;
-
         for (int i = 0; i < 10; i++)
         {
             Computers.Add(new Computer(i, $"K{i}", basePort + i, this, _logger));
         }
-        
+
         if (Computers.Count > 0)
         {
             for (int i = 0; i < Computers.Count - 1; i++)
             {
                 Computers[i].AddConnection(Computers[i + 1]);
-            }
+            } 
+            
             Computers[Computers.Count - 1].AddConnection(Computers[0]);
         }
     }
@@ -43,26 +41,22 @@ public class NetworkSimulator
     }
 
     #region Wyszukiwanie ścieżki (BFS)
+
     public List<Computer> FindPath(int startId, int endId)
     {
-        var startNode = Computers.FirstOrDefault(c => c.Id == startId);
-        var endNode = Computers.FirstOrDefault(c => c.Id == endId);
-
-        if (startNode == null || endNode == null) return new List<Computer>();
-        if (startNode == endNode) return new List<Computer> { startNode };
-
-        var queue = new Queue<Computer>();
-        var visited = new HashSet<Computer>();
-        var parentMap = new Dictionary<Computer, Computer>();
-
-        queue.Enqueue(startNode);
-        visited.Add(startNode);
+        var startNode = Computers.FirstOrDefault(c => c.Id == startId); 
+        var endNode = Computers.FirstOrDefault(c => c.Id == endId); 
+        if (startNode == null || endNode == null) return new List<Computer>(); 
+        if (startNode == endNode) return new List<Computer> { startNode }; 
+        var queue = new Queue<Computer>(); 
+        var visited = new HashSet<Computer>(); 
+        var parentMap = new Dictionary<Computer, Computer>(); 
+        queue.Enqueue(startNode); visited.Add(startNode); 
         parentMap[startNode] = null;
 
         while (queue.Count > 0)
         {
             var currentNode = queue.Dequeue();
-
             if (currentNode == endNode)
             {
                 return ReconstructPath(parentMap, endNode);
@@ -70,33 +64,35 @@ public class NetworkSimulator
 
             foreach (var neighbor in currentNode.Neighbors)
             {
-                if (!visited.Contains(neighbor))
+                if (!visited.Contains(neighbor)) 
                 {
-                    visited.Add(neighbor);
-                    parentMap[neighbor] = currentNode;
+                    visited.Add(neighbor); 
+                    parentMap[neighbor] = currentNode; 
                     queue.Enqueue(neighbor);
                 }
             }
-        }
-
+        } 
+        
         return new List<Computer>();
     }
 
     private List<Computer> ReconstructPath(Dictionary<Computer, Computer> parentMap, Computer endNode)
     {
-        var path = new List<Computer>();
-        var currentNode = endNode;
-        while (currentNode != null)
-        {
-            path.Add(currentNode);
+        var path = new List<Computer>(); 
+        var currentNode = endNode; 
+        while (currentNode != null) 
+        { 
+            path.Add(currentNode); 
             currentNode = parentMap[currentNode];
-        }
-        path.Reverse();
+        } 
+        
+        path.Reverse(); 
+        
         return path;
     }
     #endregion
     
-    public async Task StartSimulationAsync(int startId, int endId, string message, string polynomial)
+    public async Task StartSimulationAsync(int startId, int endId, string message, string polynomial, int errorNodeId)
     {
         _logger("Rozpoczynanie symulacji (tryb rozproszony)...");
         this.CurrentPolynomial = polynomial;
@@ -110,12 +106,26 @@ public class NetworkSimulator
 
         _logger($"Znaleziono ścieżkę: {string.Join(" -> ", path.Select(c => c.Name))}");
         List<int> route = path.Select(c => c.Id).ToList();
+        
+        if (errorNodeId != -1 && !route.Contains(errorNodeId))
+        {
+            _logger($"OSTRZEŻENIE: Wybrany komputer do błędu (K{errorNodeId}) nie znajduje się na trasie. Błąd nie zostanie zasymulowany.");
+            errorNodeId = -1;
+        }
+        if (errorNodeId == startId)
+        {
+            _logger($"OSTRZEŻENIE: Nie można symulować błędu na komputerze źródłowym (K{startId}). Błąd nie zostanie zasymulowany.");
+            errorNodeId = -1;
+        }
+
 
         Packet packet;
         try
         {
-            packet = new Packet(message, startId, endId, polynomial, route);
+            packet = new Packet(message, startId, endId, polynomial, route, errorNodeId);
             _logger($"Pakiet utworzony. CRC: {packet.CrcChecksum}.");
+            if (errorNodeId != -1)
+                _logger($"... Błąd zostanie zasymulowany na K{errorNodeId} ...");
         }
         catch (Exception ex)
         {
