@@ -1,0 +1,48 @@
+﻿<Window x:Class="CRCNetworkSimulator.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:CRCNetworkSimulator"
+        mc:Ignorable="d"
+        Title="Symulator Sieci CRC" Height="600" Width="800">
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="1*" MinWidth="220" MaxWidth="350"/>
+            <ColumnDefinition Width="3*" />
+        </Grid.ColumnDefinitions>
+
+        <DockPanel Grid.Column="0" Margin="10" LastChildFill="True">
+
+            <StackPanel DockPanel.Dock="Top">
+                <Label Content="Komputer źródłowy:" />
+                <TextBox x:Name="txtSource" Text="0" />
+
+                <Label Content="Komputer docelowy:" />
+                <TextBox x:Name="txtDestination" Text="1" />
+
+                <Label Content="Wiadomość (bity):" />
+                <TextBox x:Name="txtMessage" Text="1011001" />
+
+                <Label Content="Wielian (bity):" />
+                <TextBox x:Name="txtPolynomial" Text="1011" />
+
+                <Button x:Name="btnSend" Content="Wyślij Pakiet" Click="btnSend_Click" Margin="0,20,0,0" />
+
+                <CheckBox x:Name="chkEditMode" Content="Tryb edycji połączeń" 
+                          Margin="0,10,0,10"
+                          Checked="chkEditMode_Changed"
+                          Unchecked="chkEditMode_Changed"/>
+
+                <Label Content="Logi symulacji:" Margin="0,10,0,0"/>
+            </StackPanel>
+
+            <ListBox x:Name="logBox" Margin="0,5,0,0"/>
+
+        </DockPanel>
+
+        <Canvas Grid.Column="1" x:Name="NetworkCanvas" Background="WhiteSmoke"
+                SizeChanged="NetworkCanvas_SizeChanged" />
+
+    </Grid>
+</Window>
