@@ -32,6 +32,12 @@ public static class CrcService
         }
         
         int k = polyLen - 1;
+        
+        if (dataLen - k < 0)
+        {
+            throw new InvalidOperationException("Błąd wewnętrzny CRC: dane krótsze niż wielomian.");
+        }
+        
         return new string(dataChars, dataLen - k, k);
     }
     
@@ -41,11 +47,11 @@ public static class CrcService
             throw new ArgumentException("Wielomian jest nieprawidłowy (musi zaczynać się od '1' i mieć > 1 bit).");
         if (!IsValidBitString(dataBits))
             throw new ArgumentException("Dane zawierają nieprawidłowe znaki.");
-        
+
         int k = polynomialBits.Length - 1;
         
         string paddedData = dataBits + new string('0', k);
-        
+
         return PerformPolynomialDivision(paddedData, polynomialBits);
     }
     

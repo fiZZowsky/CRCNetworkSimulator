@@ -1,8 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Linq;
 using System.Text;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
@@ -12,6 +12,8 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
+using System.Net.Http;
+using System.Net.Http.Json;
 
 namespace CRCNetworkSimulator
 {
@@ -21,15 +23,33 @@ namespace CRCNetworkSimulator
 
         private bool isEditMode = false;
         private Computer selectedComputer = null;
-        
+
         private List<Computer> activePath = null;
         private HashSet<Computer> pathNodes = new HashSet<Computer>();
         private HashSet<(int, int)> pathEdges = new HashSet<(int, int)>();
+        
+        private readonly Action<string> _logger;
 
         public MainWindow()
         {
             InitializeComponent();
-            simulator = new NetworkSimulator();
+            
+            _logger = (message) =>
+            {
+                Application.Current.Dispatcher.Invoke(() =>
+                {
+                    logBox.Items.Add(message);
+                    if (logBox.Items.Count > 200)
+                    {
+                        logBox.Items.RemoveAt(0);
+                    }
+                    logBox.ScrollIntoView(logBox.Items[logBox.Items.Count - 1]);
+                });
+            };
+            
+            simulator = new NetworkSimulator(_logger);
+            
+            simulator.StartAllComputerServers();
         }
 
         #region Rysowanie i Edycja Grafu
@@ -37,7 +57,6 @@ namespace CRCNetworkSimulator
         {
             if (simulator == null || simulator.Computers.Count == 0)
                 return;
-
             SetupComputerPositions(NetworkCanvas.ActualWidth, NetworkCanvas.ActualHeight);
             DrawNetworkGraph();
         }
@@ -47,34 +66,27 @@ namespace CRCNetworkSimulator
             double centerX = canvasWidth / 2;
             double centerY = canvasHeight / 2;
             double radius = Math.Min(canvasWidth, canvasHeight) * 0.4;
-
             int count = simulator.Computers.Count;
             if (count == 0) return;
-
             double angleStep = 2 * Math.PI / count;
-
             for (int i = 0; i < count; i++)
             {
                 double angle = (i * angleStep) - (Math.PI / 2);
                 double x = centerX + radius * Math.Cos(angle);
                 double y = centerY + radius * Math.Sin(angle);
-
                 simulator.Computers[i].Position = new Point(x, y);
             }
         }
-        
+
         private void BuildPathSets()
         {
             pathNodes.Clear();
             pathEdges.Clear();
-
             if (this.activePath == null || this.activePath.Count < 2)
                 return;
-
             for (int i = 0; i < activePath.Count; i++)
             {
                 pathNodes.Add(activePath[i]);
-                
                 if (i < activePath.Count - 1)
                 {
                     var comp1 = activePath[i];
@@ -84,12 +96,11 @@ namespace CRCNetworkSimulator
                 }
             }
         }
-        
+
         private void DrawNetworkGraph()
         {
             NetworkCanvas.Children.Clear();
             if (simulator.Computers == null) return;
-            
             foreach (var comp in simulator.Computers)
             {
                 foreach (var neighbor in comp.Neighbors)
@@ -98,13 +109,11 @@ namespace CRCNetworkSimulator
                     {
                         Brush strokeBrush = Brushes.Gray;
                         double strokeThickness = 1;
-                        
                         if (pathEdges.Contains((comp.Id, neighbor.Id)))
                         {
                             strokeBrush = Brushes.Red;
                             strokeThickness = 3;
                         }
-
                         Line line = new Line
                         {
                             X1 = comp.Position.X,
@@ -118,21 +127,17 @@ namespace CRCNetworkSimulator
                     }
                 }
             }
-            
             foreach (var comp in simulator.Computers)
             {
                 Brush fillBrush = Brushes.LightBlue;
-
                 if (pathNodes.Contains(comp))
                 {
                     fillBrush = Brushes.Orange;
                 }
-
                 if (isEditMode && selectedComputer == comp)
                 {
                     fillBrush = Brushes.LawnGreen;
                 }
-
                 Ellipse ellipse = new Ellipse
                 {
                     Width = 20,
@@ -143,11 +148,9 @@ namespace CRCNetworkSimulator
                     Tag = comp
                 };
                 ellipse.MouseLeftButtonDown += Computer_MouseLeftButtonDown;
-
                 Canvas.SetLeft(ellipse, comp.Position.X - 10);
                 Canvas.SetTop(ellipse, comp.Position.Y - 10);
                 NetworkCanvas.Children.Add(ellipse);
-
                 TextBlock text = new TextBlock
                 {
                     Text = comp.Name,
@@ -163,35 +166,28 @@ namespace CRCNetworkSimulator
         private void chkEditMode_Changed(object sender, RoutedEventArgs e)
         {
             isEditMode = chkEditMode.IsChecked ?? false;
-
             if (!isEditMode)
             {
                 selectedComputer = null;
             }
-            
             this.activePath = null;
             BuildPathSets();
-
             txtSource.IsEnabled = !isEditMode;
             txtDestination.IsEnabled = !isEditMode;
             txtMessage.IsEnabled = !isEditMode;
             txtPolynomial.IsEnabled = !isEditMode;
             btnSend.IsEnabled = !isEditMode;
-
             DrawNetworkGraph();
         }
 
         private void Computer_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
             if (!isEditMode) return;
-            
             this.activePath = null;
             BuildPathSets();
-
             Ellipse clickedEllipse = sender as Ellipse;
             Computer clickedComputer = clickedEllipse?.Tag as Computer;
             if (clickedComputer == null) return;
-
             if (selectedComputer == null)
             {
                 selectedComputer = clickedComputer;
@@ -207,45 +203,45 @@ namespace CRCNetworkSimulator
                     if (selectedComputer.Neighbors.Contains(clickedComputer))
                     {
                         selectedComputer.RemoveConnection(clickedComputer);
-                        logBox.Items.Add($"Edycja: Usunięto połączenie {selectedComputer.Name} <-> {clickedComputer.Name}");
+                        _logger($"Edycja: Usunięto połączenie {selectedComputer.Name} <-> {clickedComputer.Name}");
                     }
                     else
                     {
                         selectedComputer.AddConnection(clickedComputer);
-                        logBox.Items.Add($"Edycja: Dodano połączenie {selectedComputer.Name} <-> {clickedComputer.Name}");
+                        _logger($"Edycja: Dodano połączenie {selectedComputer.Name} <-> {clickedComputer.Name}");
                     }
                     selectedComputer = null;
                 }
             }
             DrawNetworkGraph();
         }
-
         #endregion
 
+        #region Metody Konwersji
         private string ConvertTextToBitString(string text)
         {
             byte[] bytes = Encoding.ASCII.GetBytes(text);
-            StringBuilder sb = new StringBuilder();
+            var sb = new StringBuilder();
             foreach (byte b in bytes)
             {
                 sb.Append(Convert.ToString(b, 2).PadLeft(8, '0'));
             }
             return sb.ToString();
         }
-        
+
         private string ConvertPolyTextToBitString(string polyText)
         {
             string input = polyText.ToLower().Replace(" ", "").Replace("-", "+");
             if (string.IsNullOrEmpty(input))
                 throw new ArgumentException("Wielomian nie może być pusty.");
-            
+
             string[] terms = input.Split('+');
             if (terms.Length == 0)
                 throw new ArgumentException("Nieprawidłowy format wielomianu.");
 
             int maxDegree = 0;
             var powers = new List<int>();
-            
+
             foreach (string term in terms)
             {
                 if (term == "1")
@@ -282,99 +278,78 @@ namespace CRCNetworkSimulator
 
             if (maxDegree < 1)
                 throw new ArgumentException("Stopień wielomianu musi być większy lub równy 1.");
-            
+
             char[] bits = new char[maxDegree + 1];
             for (int i = 0; i < bits.Length; i++)
                 bits[i] = '0';
 
             foreach (int power in powers)
             {
-                if (power > maxDegree)
-                    throw new InvalidOperationException("Błąd parsowania potęgi.");
-
                 bits[power] = '1';
             }
 
             return new string(bits.Reverse().ToArray());
         }
+        #endregion
 
-        private void btnSend_Click(object sender, RoutedEventArgs e)
+        private async void btnSend_Click(object sender, RoutedEventArgs e)
         {
             logBox.Items.Clear();
             this.activePath = null;
             BuildPathSets();
-
-            Action<string> logger = (logMessage) =>
-            {
-                logBox.Items.Add(logMessage);
-                logBox.ScrollIntoView(logBox.Items[logBox.Items.Count - 1]);
-            };
             
-            if (!int.TryParse(txtSource.Text, out int sourceId) ||
-                !int.TryParse(txtDestination.Text, out int destId))
+            if (!int.TryParse(txtSource.Text, out int sourceId) || !int.TryParse(txtDestination.Text, out int destId))
             {
-                logger("BŁĄD: ID źródła i celu muszą być poprawnymi liczbami.");
-                return;
+                _logger("BŁĄD: ID źródła i celu muszą być poprawnymi liczbami."); return;
             }
-            if (simulator.Computers.All(c => c.Id != sourceId) ||
-                simulator.Computers.All(c => c.Id != destId))
+            if (simulator.Computers.All(c => c.Id != sourceId) || simulator.Computers.All(c => c.Id != destId))
             {
-                logger("BŁĄD: Nie znaleziono komputera o podanym ID.");
-                return;
+                _logger("BŁĄD: Nie znaleziono komputera o podanym ID."); return;
             }
             
             string messageText = txtMessage.Text;
             string polyText = txtPolynomial.Text;
-            
             if (string.IsNullOrEmpty(messageText))
             {
-                logger("BŁĄD: Wiadomość nie może być pusta.");
-                return;
+                _logger("BŁĄD: Wiadomość nie może być pusta."); return;
             }
 
             string polynomialBits;
             string messageBits;
-
             try
             {
                 polynomialBits = ConvertPolyTextToBitString(polyText);
-                
                 messageBits = ConvertTextToBitString(messageText);
-                
                 if (polynomialBits.Length <= 1 || polynomialBits[0] == '0')
                 {
-                    logger($"BŁĄD: Wielomian {polyText} (binarnie {polynomialBits}) jest nieprawidłowy. Musi reprezentować > 1 bit i zaczynać się od '1'.");
-                    return;
+                    _logger($"BŁĄD: Wielomian {polyText} (binarnie {polynomialBits}) jest nieprawidłowy."); return;
                 }
             }
             catch (Exception ex)
             {
-                logger($"BŁĄD PARSOWANIA: {ex.Message}");
-                return;
+                _logger($"BŁĄD PARSOWANIA: {ex.Message}"); return;
             }
-
-            logger($"Konwersja: Wiadomość '{messageText}' -> (bity) {messageBits}");
-            logger($"Konwersja: Wielomian '{polyText}' -> (bity) {polynomialBits}");
+            _logger($"Konwersja: Wiadomość '{messageText}' -> (bity) {messageBits}");
+            _logger($"Konwersja: Wielomian '{polyText}' -> (bity) {polynomialBits}");
             
             try
             {
                 this.activePath = simulator.FindPath(sourceId, destId);
                 BuildPathSets();
-
-                simulator.StartSimulation(sourceId, destId, messageBits, polynomialBits, logger);
-
                 DrawNetworkGraph();
+
+                await simulator.StartSimulationAsync(sourceId, destId, messageBits, polynomialBits);
             }
             catch (Exception ex)
             {
-                logger($"KRYTYCZNY BŁĄD SYMULACJI: {ex.Message}");
+                _logger($"KRYTYCZNY BŁĄD SYMULACJI: {ex.Message}");
             }
         }
 
         private void btnClearLog_Click(object sender, RoutedEventArgs e)
         {
+            _logger("Wyczyszczono logi.");
             logBox.Items.Clear();
-
             this.activePath = null;
             BuildPathSets();
             DrawNetworkGraph();

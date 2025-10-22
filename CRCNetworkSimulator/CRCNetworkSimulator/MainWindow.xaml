@@ -21,7 +21,7 @@
                 <Label Content="Komputer docelowy:" />
                 <TextBox x:Name="txtDestination" Text="1" />
 
-                <Label Content="Wiadomość (tekst):" />
+                <Label Content="Wiadomość:" />
                 <TextBox x:Name="txtMessage" Text="Hello" />
 
                 <Label Content="Wielomian:" />

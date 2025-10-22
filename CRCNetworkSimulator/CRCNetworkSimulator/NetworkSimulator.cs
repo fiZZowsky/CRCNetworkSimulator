@@ -1,18 +1,26 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net.Http;
+using System.Net.Http.Json;
+using System.Threading.Tasks;
 
 public class NetworkSimulator
 {
     public List<Computer> Computers { get; private set; }
+    public string CurrentPolynomial { get; private set; } = "1011";
 
-    public NetworkSimulator()
+    private Action<string> _logger;
+
+    public NetworkSimulator(Action<string> logger)
     {
+        _logger = logger;
         Computers = new List<Computer>();
+        int basePort = 5000;
 
         for (int i = 0; i < 10; i++)
         {
-            Computers.Add(new Computer(i, $"K{i}"));
+            Computers.Add(new Computer(i, $"K{i}", basePort + i, this, _logger));
         }
         
         if (Computers.Count > 0)
@@ -24,13 +32,23 @@ public class NetworkSimulator
             Computers[Computers.Count - 1].AddConnection(Computers[0]);
         }
     }
-    
+
+    public void StartAllComputerServers()
+    {
+        _logger("Uruchamianie serwerów dla 10 komputerów...");
+        foreach (var comp in Computers)
+        {
+            Task.Run(async () => await comp.StartServerAsync());
+        }
+    }
+
+    #region Wyszukiwanie ścieżki (BFS)
     public List<Computer> FindPath(int startId, int endId)
     {
         var startNode = Computers.FirstOrDefault(c => c.Id == startId);
         var endNode = Computers.FirstOrDefault(c => c.Id == endId);
 
-        if (startNode == null || endNode == null) return null;
+        if (startNode == null || endNode == null) return new List<Computer>();
         if (startNode == endNode) return new List<Computer> { startNode };
 
         var queue = new Queue<Computer>();
@@ -44,12 +62,12 @@ public class NetworkSimulator
         while (queue.Count > 0)
         {
             var currentNode = queue.Dequeue();
-            
+
             if (currentNode == endNode)
             {
                 return ReconstructPath(parentMap, endNode);
             }
-            
+
             foreach (var neighbor in currentNode.Neighbors)
             {
                 if (!visited.Contains(neighbor))
@@ -61,7 +79,7 @@ public class NetworkSimulator
             }
         }
 
-        return null;
+        return new List<Computer>();
     }
 
     private List<Computer> ReconstructPath(Dictionary<Computer, Computer> parentMap, Computer endNode)
@@ -76,50 +94,50 @@ public class NetworkSimulator
         path.Reverse();
         return path;
     }
+    #endregion
     
-    public void StartSimulation(int startId, int endId, string message, string polynomial, Action<string> logger)
+    public async Task StartSimulationAsync(int startId, int endId, string message, string polynomial)
     {
-        logger("Rozpoczynanie symulacji...");
-        
+        _logger("Rozpoczynanie symulacji (tryb rozproszony)...");
+        this.CurrentPolynomial = polynomial;
+
         List<Computer> path = FindPath(startId, endId);
-        if (path == null || path.Count == 0)
+        if (path == null || path.Count < 2)
         {
-            logger($"BŁĄD: Nie znaleziono ścieżki z K{startId} do K{endId}.");
+            _logger($"BŁĄD: Nie znaleziono ścieżki z K{startId} do K{endId}.");
             return;
         }
-        
-        logger($"Znaleziono ścieżkę: {string.Join(" -> ", path.Select(c => c.Name))}");
-        
+
+        _logger($"Znaleziono ścieżkę: {string.Join(" -> ", path.Select(c => c.Name))}");
+        List<int> route = path.Select(c => c.Id).ToList();
+
         Packet packet;
         try
         {
-            packet = new Packet(message, startId, endId, polynomial);
-            logger($"Pakiet utworzony. Dane: {message}, Wielomian: {polynomial}");
-            logger($"Obliczone CRC: {packet.CrcChecksum}");
-            logger($"Dane do wysłania: {packet.DataWithChecksum}");
+            packet = new Packet(message, startId, endId, polynomial, route);
+            _logger($"Pakiet utworzony. CRC: {packet.CrcChecksum}.");
         }
         catch (Exception ex)
         {
-            logger($"BŁĄD tworzenia pakietu: {ex.Message}");
+            _logger($"BŁĄD tworzenia pakietu: {ex.Message}");
             return;
         }
-        
-        for (int i = 0; i < path.Count - 1; i++)
+
+        Computer firstHop = path[1];
+        int firstHopPort = firstHop.Port;
+
+        try
         {
-            Computer currentHop = path[i];
-            Computer nextHop = path[i + 1];
-
-            logger($"Wysyłanie z {currentHop.Name} do {nextHop.Name}...");
-
-            bool isValid = nextHop.ReceivePacket(packet, polynomial, logger);
-
-            if (!isValid)
+            _logger($"Inicjowanie wysyłki z K{startId} do K{firstHop.Id} (Port: {firstHopPort})...");
+            using (var client = new HttpClient())
             {
-                logger($"BŁĄD CRC! Pakiet odrzucony w {nextHop.Name}. Transmisja przerwana.");
-                return;
+                await client.PostAsJsonAsync($"http://localhost:{firstHopPort}/receivepacket", packet);
             }
+            _logger("Wysyłka zainicjowana. Śledź logi serwerów...");
         }
-
-        logger($"Transmisja zakończona. Pakiet pomyślnie dotarł do {path.Last().Name}.");
+        catch (Exception ex)
+        {
+            _logger($"BŁĄD KRYTYCZNY: Nie można połączyć się z K{firstHop.Id}: {ex.Message}");
+        }
     }
 }
