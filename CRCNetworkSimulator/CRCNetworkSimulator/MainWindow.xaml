@@ -21,11 +21,11 @@
                 <Label Content="Komputer docelowy:" />
                 <TextBox x:Name="txtDestination" Text="1" />
 
-                <Label Content="Wiadomość (bity):" />
-                <TextBox x:Name="txtMessage" Text="1011001" />
+                <Label Content="Wiadomość (tekst):" />
+                <TextBox x:Name="txtMessage" Text="Hello" />
 
-                <Label Content="Wielian (bity):" />
-                <TextBox x:Name="txtPolynomial" Text="1011" />
+                <Label Content="Wielomian:" />
+                <TextBox x:Name="txtPolynomial" Text="x^3+x+1" />
 
                 <Button x:Name="btnSend" Content="Wyślij Pakiet" Click="btnSend_Click" Margin="0,20,0,0" />
 

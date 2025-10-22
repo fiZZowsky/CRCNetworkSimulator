@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Text;
 using System.Windows;
@@ -31,6 +32,7 @@ namespace CRCNetworkSimulator
             simulator = new NetworkSimulator();
         }
 
+        #region Rysowanie i Edycja Grafu
         private void NetworkCanvas_SizeChanged(object sender, SizeChangedEventArgs e)
         {
             if (simulator == null || simulator.Computers.Count == 0)
@@ -217,11 +219,88 @@ namespace CRCNetworkSimulator
             }
             DrawNetworkGraph();
         }
+
+        #endregion
+
+        private string ConvertTextToBitString(string text)
+        {
+            byte[] bytes = Encoding.ASCII.GetBytes(text);
+            StringBuilder sb = new StringBuilder();
+            foreach (byte b in bytes)
+            {
+                sb.Append(Convert.ToString(b, 2).PadLeft(8, '0'));
+            }
+            return sb.ToString();
+        }
         
+        private string ConvertPolyTextToBitString(string polyText)
+        {
+            string input = polyText.ToLower().Replace(" ", "").Replace("-", "+");
+            if (string.IsNullOrEmpty(input))
+                throw new ArgumentException("Wielomian nie może być pusty.");
+            
+            string[] terms = input.Split('+');
+            if (terms.Length == 0)
+                throw new ArgumentException("Nieprawidłowy format wielomianu.");
+
+            int maxDegree = 0;
+            var powers = new List<int>();
+            
+            foreach (string term in terms)
+            {
+                if (term == "1")
+                {
+                    powers.Add(0);
+                }
+                else if (term == "x")
+                {
+                    powers.Add(1);
+                    maxDegree = Math.Max(maxDegree, 1);
+                }
+                else if (term.StartsWith("x^"))
+                {
+                    if (int.TryParse(term.Substring(2), out int power))
+                    {
+                        powers.Add(power);
+                        maxDegree = Math.Max(maxDegree, power);
+                    }
+                    else
+                    {
+                        throw new FormatException($"Nieprawidłowy składnik wielomianu: '{term}'");
+                    }
+                }
+                else
+                {
+                    throw new FormatException($"Nieznany składnik wielomianu: '{term}'. Użyj formatu 'x^3+x+1'.");
+                }
+            }
+
+            if (maxDegree == 0 && powers.Count > 0)
+            {
+                if (powers.All(p => p == 0)) return "1";
+            }
+
+            if (maxDegree < 1)
+                throw new ArgumentException("Stopień wielomianu musi być większy lub równy 1.");
+            
+            char[] bits = new char[maxDegree + 1];
+            for (int i = 0; i < bits.Length; i++)
+                bits[i] = '0';
+
+            foreach (int power in powers)
+            {
+                if (power > maxDegree)
+                    throw new InvalidOperationException("Błąd parsowania potęgi.");
+
+                bits[power] = '1';
+            }
+
+            return new string(bits.Reverse().ToArray());
+        }
+
         private void btnSend_Click(object sender, RoutedEventArgs e)
         {
             logBox.Items.Clear();
-            
             this.activePath = null;
             BuildPathSets();
 
@@ -243,27 +322,47 @@ namespace CRCNetworkSimulator
                 logger("BŁĄD: Nie znaleziono komputera o podanym ID.");
                 return;
             }
-            string message = txtMessage.Text;
-            string polynomial = txtPolynomial.Text;
-            if (!CrcService.IsValidBitString(message) || message.Length == 0)
+            
+            string messageText = txtMessage.Text;
+            string polyText = txtPolynomial.Text;
+            
+            if (string.IsNullOrEmpty(messageText))
             {
-                logger("BŁĄD: Wiadomość może zawierać tylko '0' lub '1' i nie być pusta.");
-                return;
-            }
-            if (!CrcService.IsValidBitString(polynomial) || polynomial.Length <= 1 || polynomial[0] == '0')
-            {
-                logger("BŁĄD: Wielomian musi zawierać '0' lub '1', mieć min. 2 bity i zaczynać się od '1'.");
+                logger("BŁĄD: Wiadomość nie może być pusta.");
                 return;
             }
 
+            string polynomialBits;
+            string messageBits;
+
+            try
+            {
+                polynomialBits = ConvertPolyTextToBitString(polyText);
+                
+                messageBits = ConvertTextToBitString(messageText);
+                
+                if (polynomialBits.Length <= 1 || polynomialBits[0] == '0')
+                {
+                    logger($"BŁĄD: Wielomian {polyText} (binarnie {polynomialBits}) jest nieprawidłowy. Musi reprezentować > 1 bit i zaczynać się od '1'.");
+                    return;
+                }
+            }
+            catch (Exception ex)
+            {
+                logger($"BŁĄD PARSOWANIA: {ex.Message}");
+                return;
+            }
+
+            logger($"Konwersja: Wiadomość '{messageText}' -> (bity) {messageBits}");
+            logger($"Konwersja: Wielomian '{polyText}' -> (bity) {polynomialBits}");
+            
             try
             {
                 this.activePath = simulator.FindPath(sourceId, destId);
-                
                 BuildPathSets();
-                
-                simulator.StartSimulation(sourceId, destId, message, polynomial, logger);
-                
+
+                simulator.StartSimulation(sourceId, destId, messageBits, polynomialBits, logger);
+
                 DrawNetworkGraph();
             }
             catch (Exception ex)
@@ -271,11 +370,11 @@ namespace CRCNetworkSimulator
                 logger($"KRYTYCZNY BŁĄD SYMULACJI: {ex.Message}");
             }
         }
-        
+
         private void btnClearLog_Click(object sender, RoutedEventArgs e)
         {
             logBox.Items.Clear();
-            
+
             this.activePath = null;
             BuildPathSets();
             DrawNetworkGraph();
