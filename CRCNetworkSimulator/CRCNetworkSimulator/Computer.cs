@@ -1,5 +1,6 @@
-﻿using System.Net.Sockets;
+﻿using System.Collections.Generic;
 using System.Windows;
+using System;
 
 public class Computer
 {
@@ -15,7 +16,7 @@ public class Computer
         Neighbors = new List<Computer>();
         Position = new Point(0, 0);
     }
-    
+
     public void AddConnection(Computer neighbor)
     {
         if (!Neighbors.Contains(neighbor))
@@ -40,16 +41,38 @@ public class Computer
         }
     }
     
-    public bool ReceivePacket(Packet packet, string polynomial)
+    public bool ReceivePacket(Packet packet, string polynomial, Action<string> logger)
     {
-        bool isDataValid = CrcService.Validate(packet.DataWithChecksum, polynomial);
+        logger($"  -> {this.Name} odebrał pakiet. Sprawdzanie CRC...");
+
+        bool isDataValid;
+        try
+        {
+            isDataValid = CrcService.Validate(packet.DataWithChecksum, polynomial);
+        }
+        catch (Exception ex)
+        {
+            logger($"  -> BŁĄD KRYTYCZNY walidacji w {this.Name}: {ex.Message}");
+            return false;
+        }
+
 
         if (isDataValid)
         {
-            if (packet.DestinationId != this.Id)
+            logger($"  -> Walidacja w {this.Name}: OK.");
+            
+            if (packet.DestinationId == this.Id)
             {
-                // TODO: Znajdź następny krok na ścieżce i wyślij
+                logger($"  -> {this.Name} jest celem. Odbieram dane: {packet.OriginalData}");
             }
+            else
+            {
+                logger($"  -> {this.Name} nie jest celem. Oznaczam jako sprawdzony.");
+            }
+        }
+        else
+        {
+            logger($"  -> Walidacja w {this.Name}: BŁĄD! Dane uszkodzone.");
         }
 
         return isDataValid;
