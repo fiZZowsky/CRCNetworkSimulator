@@ -1,4 +1,5 @@
-﻿using System;
+﻿using CRCNetworkSimulator.Enums;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
@@ -13,7 +14,7 @@ public class NetworkSimulator
 
     public NetworkSimulator(Action<string> logger)
     {
-        _logger = logger; Computers = new List<Computer>(); 
+        _logger = logger; Computers = new List<Computer>();
         int basePort = 5000;
         for (int i = 0; i < 10; i++)
         {
@@ -25,8 +26,8 @@ public class NetworkSimulator
             for (int i = 0; i < Computers.Count - 1; i++)
             {
                 Computers[i].AddConnection(Computers[i + 1]);
-            } 
-            
+            }
+
             Computers[Computers.Count - 1].AddConnection(Computers[0]);
         }
     }
@@ -44,14 +45,14 @@ public class NetworkSimulator
 
     public List<Computer> FindPath(int startId, int endId)
     {
-        var startNode = Computers.FirstOrDefault(c => c.Id == startId); 
-        var endNode = Computers.FirstOrDefault(c => c.Id == endId); 
-        if (startNode == null || endNode == null) return new List<Computer>(); 
-        if (startNode == endNode) return new List<Computer> { startNode }; 
-        var queue = new Queue<Computer>(); 
-        var visited = new HashSet<Computer>(); 
-        var parentMap = new Dictionary<Computer, Computer>(); 
-        queue.Enqueue(startNode); visited.Add(startNode); 
+        var startNode = Computers.FirstOrDefault(c => c.Id == startId);
+        var endNode = Computers.FirstOrDefault(c => c.Id == endId);
+        if (startNode == null || endNode == null) return new List<Computer>();
+        if (startNode == endNode) return new List<Computer> { startNode };
+        var queue = new Queue<Computer>();
+        var visited = new HashSet<Computer>();
+        var parentMap = new Dictionary<Computer, Computer>();
+        queue.Enqueue(startNode); visited.Add(startNode);
         parentMap[startNode] = null;
 
         while (queue.Count > 0)
@@ -64,35 +65,35 @@ public class NetworkSimulator
 
             foreach (var neighbor in currentNode.Neighbors)
             {
-                if (!visited.Contains(neighbor)) 
+                if (!visited.Contains(neighbor))
                 {
-                    visited.Add(neighbor); 
-                    parentMap[neighbor] = currentNode; 
+                    visited.Add(neighbor);
+                    parentMap[neighbor] = currentNode;
                     queue.Enqueue(neighbor);
                 }
             }
-        } 
-        
+        }
+
         return new List<Computer>();
     }
 
     private List<Computer> ReconstructPath(Dictionary<Computer, Computer> parentMap, Computer endNode)
     {
-        var path = new List<Computer>(); 
-        var currentNode = endNode; 
-        while (currentNode != null) 
-        { 
-            path.Add(currentNode); 
+        var path = new List<Computer>();
+        var currentNode = endNode;
+        while (currentNode != null)
+        {
+            path.Add(currentNode);
             currentNode = parentMap[currentNode];
-        } 
-        
-        path.Reverse(); 
-        
+        }
+
+        path.Reverse();
+
         return path;
     }
     #endregion
-    
-    public async Task StartSimulationAsync(int startId, int endId, string message, string polynomial, int errorNodeId)
+
+    public async Task StartSimulationAsync(int startId, int endId, string message, string polynomial, int errorNodeId, ErrorType errorType)
     {
         _logger("Rozpoczynanie symulacji (tryb rozproszony)...");
         this.CurrentPolynomial = polynomial;
@@ -106,7 +107,7 @@ public class NetworkSimulator
 
         _logger($"Znaleziono ścieżkę: {string.Join(" -> ", path.Select(c => c.Name))}");
         List<int> route = path.Select(c => c.Id).ToList();
-        
+
         if (errorNodeId != -1 && !route.Contains(errorNodeId))
         {
             _logger($"OSTRZEŻENIE: Wybrany komputer do błędu (K{errorNodeId}) nie znajduje się na trasie. Błąd nie zostanie zasymulowany.");
@@ -118,14 +119,15 @@ public class NetworkSimulator
             errorNodeId = -1;
         }
 
-
         Packet packet;
         try
         {
-            packet = new Packet(message, startId, endId, polynomial, route, errorNodeId);
+            // Przekazanie errorType do konstruktora
+            packet = new Packet(message, startId, endId, polynomial, route, errorNodeId, errorType);
+
             _logger($"Pakiet utworzony. CRC: {packet.CrcChecksum}.");
             if (errorNodeId != -1)
-                _logger($"... Błąd zostanie zasymulowany na K{errorNodeId} ...");
+                _logger($"... Błąd ({errorType}) zostanie zasymulowany na K{errorNodeId} ...");
         }
         catch (Exception ex)
         {

@@ -1,6 +1,9 @@
-﻿using System;
+﻿using CRCNetworkSimulator.Enums;
+using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net.Http;
+using System.Net.Http.Json;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
@@ -12,8 +15,6 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
-using System.Net.Http;
-using System.Net.Http.Json;
 
 namespace CRCNetworkSimulator
 {
@@ -297,6 +298,8 @@ namespace CRCNetworkSimulator
             _logger($"Konwersja: Wielomian '{polyText}' -> (bity) {polynomialBits}");
 
             int errorNodeId = -1;
+            ErrorType selectedErrorType = ErrorType.SingleBit;
+
             if (chkSimulateError.IsChecked == true)
             {
                 if (!int.TryParse(txtErrorNodeId.Text, out errorNodeId))
@@ -304,6 +307,10 @@ namespace CRCNetworkSimulator
                     _logger("BŁĄD: ID komputera do błędu musi być poprawną liczbą.");
                     return;
                 }
+
+                if (rbErrorSingle.IsChecked == true) selectedErrorType = ErrorType.SingleBit;
+                else if (rbErrorTwo.IsChecked == true) selectedErrorType = ErrorType.TwoIsolatedBits;
+                else if (rbErrorBurst.IsChecked == true) selectedErrorType = ErrorType.Burst;
             }
             
             try
@@ -312,7 +319,7 @@ namespace CRCNetworkSimulator
                 BuildPathSets();
                 DrawNetworkGraph();
                 
-                await simulator.StartSimulationAsync(sourceId, destId, messageBits, polynomialBits, errorNodeId);
+                await simulator.StartSimulationAsync(sourceId, destId, messageBits, polynomialBits, errorNodeId, selectedErrorType);
             }
             catch (Exception ex)
             {
