@@ -1,7 +1,4 @@
-﻿using System;
-using System.Linq;
-
-public static class CrcService
+﻿public static class CrcService
 {
     public static bool IsValidBitString(string bits)
     {

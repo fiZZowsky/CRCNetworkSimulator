@@ -5,14 +5,18 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:CRCNetworkSimulator"
         mc:Ignorable="d"
-        Title="Symulator Sieci CRC" Height="600" Width="800">
+        Title="Symulator Sieci CRC" Height="720" Width="1280">
     <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="0*"/>
+            <RowDefinition/>
+        </Grid.RowDefinitions>
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="1*" MinWidth="220" MaxWidth="350"/>
             <ColumnDefinition Width="3*" />
         </Grid.ColumnDefinitions>
 
-        <DockPanel Grid.Column="0" Margin="10" LastChildFill="True">
+        <DockPanel Grid.Column="0" Margin="10,10,10,10" LastChildFill="True" Grid.RowSpan="2">
 
             <StackPanel DockPanel.Dock="Top">
                 <Label Content="Komputer źródłowy:" />
@@ -55,12 +59,19 @@
                         Click="btnClearLog_Click" Margin="0,5,0,0"/>
             </StackPanel>
 
-            <ListBox x:Name="logBox" Margin="0,5,0,0"/>
+            <ListBox x:Name="logBox" Margin="0,5,0,0">
+                <ListBox.ItemContainerStyle>
+                    <Style TargetType="ListBoxItem">
+                        <Setter Property="HorizontalContentAlignment" Value="Left"/>
+                        <Setter Property="VerticalContentAlignment" Value="Center"/>
+                    </Style>
+                </ListBox.ItemContainerStyle>
+            </ListBox>
 
         </DockPanel>
 
         <Canvas Grid.Column="1" x:Name="NetworkCanvas" Background="WhiteSmoke"
-                SizeChanged="NetworkCanvas_SizeChanged" />
+                SizeChanged="NetworkCanvas_SizeChanged" Grid.RowSpan="2" />
 
     </Grid>
 </Window>

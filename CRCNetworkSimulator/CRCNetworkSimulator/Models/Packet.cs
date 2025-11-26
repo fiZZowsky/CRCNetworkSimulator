@@ -1,6 +1,4 @@
 ﻿using CRCNetworkSimulator.Enums;
-using System;
-using System.Collections.Generic;
 using System.Text.Json.Serialization;
 
 public class Packet
